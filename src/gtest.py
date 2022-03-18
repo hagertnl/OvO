@@ -279,7 +279,6 @@ class HP:  # ^(;,;)^
         for k, v in d_arg.items():
             setattr(self, k, v)
 
-
     @cached_property
     def T(self):
         return TypeSystem(self.data_type)
@@ -340,6 +339,16 @@ class HP:  # ^(;,;)^
         elif self.language == "fortran":
             return n.replace("for", "do")
         return NotImplementedError
+
+    @cached_property
+    def needs_timer(self):
+        """
+        >>> HP(None, {"test_type": "empty_function_latency"}).name
+        'True'
+        >>> HP(None, {"test_type": "atomic_add"}).name
+        'False'
+        """
+        return self.test_type == 'empty_function_latency'
 
     @cached_property
     def ext(self):
@@ -866,10 +875,14 @@ class HP:  # ^(;,;)^
 
         if not self.is_valid_test:
             return None
-
-        template = templateEnv.get_template(f"hierarchical_parallelism.{self.ext}.jinja2")
-        str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
-        return format_template(str_, self.language)
+        if self.test_type == 'empty_function_latency':
+            template = templateEnv.get_template(f"performance_test.{self.ext}.jinja2")
+            str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
+            return format_template(str_, self.language)
+        else:
+            template = templateEnv.get_template(f"performance_test.{self.ext}.jinja2")
+            str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
+            return format_template(str_, self.language)
 
     def write_template_rendered(self, folder):
         if self.template_rendered:
@@ -1000,7 +1013,6 @@ class Argv:
 
 
 class Math:
-
     T_to_values = {
         "bool": [True],
         "float": [0.42, 4.42],
@@ -1133,6 +1145,134 @@ class Math:
         l = [ ['']*len(i) for i in self.l_nested_constructs_ironed_out ]
         l[0][0] = str_
         return l
+
+class Performance(HP):
+    def __init__(self, path_raw, d_arg):
+        # Explicit is better than implicit.
+        # So this is ugly... But really usefull when testing
+        # pf_d_possible_value is a global variable who contain as a key all the possible option
+        for k in pf_d_possible_value:
+            setattr(self, k, False)
+        # This will also copy in all hp_d_possible_values, and all values from d_arg
+        super().__init__(path_raw, d_arg)
+
+    # override from HP class
+    @cached_property
+    def regions_additional_pragma(self):
+        """
+        >>> # HP(["target teams"], {"test_type": "atomic_add", "collapse": 0}).regions_additional_pragma
+        [['num_teams(9) map(tofrom: counter_teams)']]
+        >>> # HP(["target teams","parallel"], {"test_type": "atomic_add", "collapse": 0}).regions_additional_pragma
+        [['num_teams(3) map(tofrom: counter_teams)'], ['num_threads(3)']]
+        >>> HP(["target teams distribute parallel for"], {"test_type": "ordered", "collapse": 0, "data_type": "float"}).regions_additional_pragma
+        [['map(tofrom: counter_N0) ordered']]
+        >>> # HP(["target teams"], {"test_type": "reduction_add", "collapse": 0}).regions_additional_pragma
+        [['num_teams(9) reduction(+: counter_teams)']]
+        >>> HP(["target","teams distribute"], {"test_type": "reduction_add", "collapse": 0}).regions_additional_pragma
+        [['map(tofrom: counter_N0)', 'reduction(+: counter_N0)']]
+        >>> HP(["target teams distribute"], {"test_type": "reduction_min", "collapse": 0}).regions_additional_pragma
+        [['reduction(min: counter_N0)']]
+        >>> HP(["target teams distribute"], {"test_type": "reduction_max", "collapse": 0}).regions_additional_pragma
+        [['reduction(max: counter_N0)']]
+        >>> # HP(["target teams"], {"test_type": "reduction_add", "collapse": 0, "no_implicit_mapping": True}).regions_additional_pragma
+        [['num_teams(9) map(tofrom: counter_teams) reduction(+: counter_teams)']]
+        >>> # HP(["target teams"], {"test_type": "memcopy", "collapse": 0, "data_type": "float"}).regions_additional_pragma
+        [['num_teams(9) map(to: pS[0:size]) map(from: pD[0:size])']]
+        >>> HP(["parallel for", "target teams distribute"], {"test_type": "memcopy", "collapse": 0, "data_type": "float", "multiple_devices": True}).regions_additional_pragma
+        [[''], ['map(to: pS[(i0)*N1:N1]) map(from: pD[(i0)*N1:N1]) device((i0)%omp_get_num_devices())']]
+        >>> HP(["parallel for", "target"], {"test_type": "memcopy", "collapse": 0, "data_type": "float", "multiple_devices": True}).regions_additional_pragma
+        [[''], ['map(to: pS[(i0)*1:1]) map(from: pD[(i0)*1:1]) device((i0)%omp_get_num_devices())']]
+        >>> HP(["parallel for", "target"], {"test_type": "memcopy", "collapse": 0, "data_type": "REAL", "multiple_devices": True}).regions_additional_pragma
+        [[''], ['map(to: src(i0-1+1:i0-1+1)) map(from: dst(i0-1+1:i0-1+1)) device(MOD(i0-1+1,omp_get_num_devices()))']]
+        >>> HP(["parallel for", "target teams distribute"], {"test_type": "memcopy", "collapse": 0, "data_type": "REAL", "multiple_devices": True}).regions_additional_pragma
+        [[''], ['map(to: src((i0-1+1)*N1:(i0-1+1)*2*N1)) map(from: dst((i0-1+1)*N1:(i0-1+1)*2*N1)) device(MOD(i0-1+1,omp_get_num_devices()))']]
+        >>> HP(["parallel for", "target teams distribute"], {"test_type": "memcopy", "collapse": 2, "data_type": "float", "multiple_devices": True}).regions_additional_pragma
+        [['collapse(2)'], ['map(to: pS[(i1+N1*(i0))*N2*N3:N2*N3]) map(from: pD[(i1+N1*(i0))*N2*N3:N2*N3]) device((i1+N1*(i0))%omp_get_num_devices()) collapse(2)']]
+        >>> HP(["target teams distribute"], {"test_type": "reduction_add", "collapse": 3}).regions_additional_pragma
+        [['reduction(+: counter_N0) collapse(3)']]
+        """
+
+        def device_directive(i, counter, pragma):
+            if pragma.has_construct("target") and self.multiple_devices:
+                idx = self.running_index(i * self.unroll_factor)
+                if self.language == "cpp":
+                    yield f"device(({idx})%omp_get_num_devices())"
+                elif self.language == "fortran":
+                    yield f"device(MOD({idx},omp_get_num_devices()))"
+
+        def mapping_directive(i, counter, pragma):
+            # If we use `target_data` we still map in target
+            # This is because of sclalar mapping who are first private by default.
+            if not pragma.has_construct("target"):
+                return
+
+            # Left in place so fields can be easily added later
+            if self.test_type.startswith('atomic') or self.test_type == 'ordered':
+                yield f"map(tofrom: {counter})"
+            elif 'reduction' in self.test_type:
+                if pragma == 'target' or self.no_implicit_mapping:
+                    yield f"map(tofrom: {counter})"
+
+        def sharing_attribute(i, counter, pragma):
+            if not self.intermediate_result:
+                return
+
+            if self.language != "fortran":
+                return
+
+            if not any(t in self.test_type for t  in ("atomic","reduction")):
+                return
+
+            if pragma == "target":
+                return
+
+            if not pragma.can_be_privatized:
+                return
+
+            if "atomic" in self.test_type and pragma != 'simd':
+                yield f"shared({counter})"
+
+            for counter_ in self.regions_counter[i+1:]:
+                yield f"private({counter_})"
+
+
+        def reduction_directive(counter, pragma):
+            if "reduction_add" in self.test_type and pragma.can_be_reduced:
+                yield f"reduction(+: {counter})"
+            elif "reduction_min" in self.test_type and pragma.can_be_reduced:
+                yield f"reduction(min: {counter})"
+            elif "reduction_max" in self.test_type and pragma.can_be_reduced:
+                yield f"reduction(max: {counter})"
+
+        def ordered_directive(pragma):
+            if "ordered" in self.test_type and pragma.has_construct("ordered"):
+                yield "ordered"
+
+        def collapse_directive(pragma):
+            if self.collapse and pragma.has_construct("loop-associated"):
+                yield f"collapse({self.collapse})"
+
+        def limit_directive(pragma):
+            # We don't sepcify num_teams for now.
+            # Indeed it not yet support by the vast majority of compiler
+            # When it will be the case, we will remove the call to `omp_set_num_teams`
+            # and use this function
+
+            #if self.single('teams') and 'teams' in pragma:
+            #    yield f"num_teams(1,{self.loop_tripcount})"
+
+            if self.single('parallel') and 'parallel' in pragma:
+                yield f"num_threads({self.loop_tripcount})"
+
+        def additional_pragma(i, counter, pragma):
+            construct = chain(limit_directive(pragma), mapping_directive(i, counter, pragma), device_directive(i, counter, pragma),
+                              reduction_directive(counter, pragma), ordered_directive(pragma), collapse_directive(pragma), sharing_attribute(i,counter,pragma))
+            return " ".join(construct)
+
+
+        map_region = lambda i, c, r: [additional_pragma(i, c, pragma) for pragma in r]
+        return [map_region(i, c, r) for i, c, r in zip(count(), self.regions_counter, self.l_nested_constructs)]
+
 #  -
 # /   _   _|  _     _   _  ._   _  ._ _. _|_ o  _  ._
 # \_ (_) (_| (/_   (_| (/_ | | (/_ | (_|  |_ | (_) | |
@@ -1141,7 +1281,6 @@ class Math:
 
 
 def gen_mf(d_arg):
-
     std = d_arg["standard"]
     cmplx = d_arg["complex"]
     hp = d_arg["hp"]
@@ -1227,6 +1366,38 @@ def gen_hp(d_arg, omp_construct):
             path = ["parallel for"] + path
         HP(path, d_arg).write_template_rendered(folder)
 
+def gen_pf(d_arg, omp_construct):
+    t = TypeSystem(d_arg["data_type"])
+
+    # Paired_pragmas only valid for fortran code
+    if d_arg["paired_pragmas"] and t.language != "fortran":
+        return False
+
+    """
+    >> The only constructs that may be nested inside a loop region are the loop construct, the parallel construct,
+    the simd construct, and combined constructs for which the first construct is a parallel construct.
+
+    That mean no atomic with loop
+    """
+    if d_arg["test_type"].startswith("atomic") and d_arg["loop_pragma"]:
+        return False
+
+    name_folder = [d_arg["test_type"], t.serialized] + sorted([k for k, v in d_arg.items() if v is True])
+    if d_arg["collapse"]:
+        name_folder += [f"collapse_n{d_arg['collapse']}"]
+
+    folder = os.path.join("test_src", t.language, "performance", "-".join(name_folder))
+    print(f"Generating {folder}")
+    os.makedirs(folder, exist_ok=True)
+
+    with open(os.path.join(folder, "Makefile"), "w") as f:
+        f.write(templateEnv.get_template(f"Makefile.jinja2").render(ext="cpp" if t.language == "cpp" else "F90"))
+
+    for path in omp_construct:
+        if d_arg["host_threaded"] or d_arg["multiple_devices"]:
+            path = ["parallel for"] + path
+        Performance(path, d_arg).write_template_rendered(folder)
+
 
 # ___        _
 #  | _  _|_ |_)_ ._._ _   _|_ _._|_o _ ._
@@ -1261,7 +1432,7 @@ def gen_all_permutation(d_args):
 #                                  _|
 
 hp_d_possible_value = {
-    "test_type": {"memcopy", "atomic_add", "reduction_add", "reduction_min", "reduction_max", "ordered"},
+    "test_type": {"memcopy", "atomic_add", "reduction_add", "reduction_min", "reduction_max", "ordered", "empty_function_latency"},
     "data_type": {"REAL", "DOUBLE PRECISION", "float", "double", "complex<float>", "complex<double>", "COMPLEX", "DOUBLE COMPLEX"},
     "loop_pragma": bool,
     "paired_pragmas": bool,
@@ -1277,6 +1448,24 @@ hp_d_possible_value = {
 
 hp_d_default_value = defaultdict(lambda: False)
 hp_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"memcopy", "atomic_add", "reduction_add"}, "collapse": [0], "tripcount": [32 * 32 * 32]})
+
+pf_d_possible_value = {
+    "test_type": {"empty_function_latency"},
+    "data_type": {"REAL", "DOUBLE PRECISION", "float", "double"},
+    "loop_pragma": bool,
+    "paired_pragmas": bool,
+    "no_implicit_mapping": bool,
+    "host_threaded": bool,
+    "multiple_devices": bool,
+    "intermediate_result": bool,
+    "collapse": int,
+    "tripcount": int,
+    "repeatcount": int,     # repeatcount - number of times to repeat the inner-most timed run
+    "target_data": bool
+}
+
+pf_d_default_value = defaultdict(lambda: False)
+pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 10})
 
 
 mf_d_possible_value = {"standard": {"cpp11", "cpp17", "cpp20", "F77", "gnu", "F08"},
@@ -1360,6 +1549,15 @@ if __name__ == "__main__":
     for opt in hp_d_possible_value:
         hp_parser.add_argument(f"--{opt}", nargs="*")
     hp_parser.add_argument("--append", action="store_true")
+
+    # ~
+    # performance
+    # ~
+    pf_parser = action_parsers.add_parser("performance")
+    for opt in pf_d_possible_value:
+        pf_parser.add_argument(f"--{opt}", nargs="*")
+    pf_parser.add_argument("--append", action="store_true")
+
     # ~
     # mathematical_function
     # ~
@@ -1377,12 +1575,20 @@ if __name__ == "__main__":
         d = dict(hp_d_default_value)
         update_opt(p, d, hp_d_possible_value)
         l_hp = [d]
+        l_pf = []
+        l_mf = []
+    elif p.command == "performance":
+        d = dict(pf_d_default_value)
+        update_opt(p, d, pf_d_possible_value)
+        l_hp = []
+        l_pf = [d]
         l_mf = []
     elif p.command == "mathematical_function":
         d = dict(mf_d_default_value)
         update_opt(p, d, mf_d_possible_value)
         l_mf = [d]
         l_hp = []
+        l_pf = []
     else:
         if not p.command or not p.tripcount:
             t = 32 * 32 * 32
@@ -1393,6 +1599,7 @@ if __name__ == "__main__":
             l_hp = [{"data_type": {"REAL", "float", "complex<double>", "DOUBLE COMPLEX"}, "test_type": {"memcopy", "atomic_add", "reduction_add"}, 
                     "tripcount": {t}, "no_user_defined_reduction": {False,}} ] #{p.no_user_defined_reduction != None}}]
             l_mf = [{"standard": {"cpp11", "F77"}, "complex": {True, False}, "hp": {"target",} }]
+            l_pf = []
         if p.command == "tiers" and p.tiers >= 2:
             l_hp += [
                 {"data_type": {"REAL", "float"}, "test_type": "ordered","tripcount": {t}},
@@ -1422,6 +1629,7 @@ if __name__ == "__main__":
             l_mf = [d2]
 
     l_hp_unique = set(chain.from_iterable(gen_all_permutation(d) for d in l_hp))
+    l_pf_unique = set(chain.from_iterable(gen_all_permutation(d) for d in l_pf))
     l_mf_unique = set(chain.from_iterable(gen_all_permutation(d) for d in l_mf))
     # ~
     # Generate tests for cartesian product of options
@@ -1429,7 +1637,7 @@ if __name__ == "__main__":
     with open(os.path.join(dirname, "config", "omp_struct.json"), "r") as f:
         omp_construct = combinations_construct(json.load(f))
 
-    for type_, l_args in [("hierarchical_parallelism", l_hp_unique), ("mathematical_function", l_mf_unique)]:
+    for type_, l_args in [("hierarchical_parallelism", l_hp_unique), ("performance", l_pf_unique), ("mathematical_function", l_mf_unique)]:
 
         if not ("append" in vars(p) and vars(p)["append"]):
             print(f"Removing ./tests_src/{{cpp,fortran}}/{type_}")
@@ -1439,5 +1647,7 @@ if __name__ == "__main__":
         for d_args in l_args:
             if type_ == "hierarchical_parallelism":
                 gen_hp(d_args, omp_construct)
+            elif type_ == "performance":
+                gen_pf(d_args, omp_construct)
             else:
                 gen_mf(d_args)
