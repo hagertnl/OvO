@@ -880,7 +880,7 @@ class HP:  # ^(;,;)^
             str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
             return format_template(str_, self.language)
         else:
-            template = templateEnv.get_template(f"performance_test.{self.ext}.jinja2")
+            template = templateEnv.get_template(f"hierarchical_parallelism.{self.ext}.jinja2")
             str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
             return format_template(str_, self.language)
 
@@ -1157,6 +1157,14 @@ class Performance(HP):
         super().__init__(path_raw, d_arg)
 
     # override from HP class
+
+    @cached_property
+    def openmp_api_call(self):
+        """
+            All Performance codes use omp_get_wtime(), so we need the OMP header
+        """
+        return True
+
     @cached_property
     def regions_additional_pragma(self):
         """

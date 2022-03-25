@@ -39,29 +39,10 @@ END FUNCTION omp_get_num_devices
 #endif
 {% endif %}
 
-{#  _                                         _                         #}
-{# /   _  ._ _  ._   _. ._ _. o  _  _  ._    |_    ._   _ _|_ o  _  ._  #}
-{# \_ (_) | | | |_) (_| | (_| | _> (_) | |   | |_| | | (_  |_ | (_) | | #}
-{#              |                                                       #}
-
-
-{# For memcopy we compare 'bitwise', for folder we compare relatively due to floating point arithmetic #}
-
-{% if test_type != 'memcopy' %}
-FUNCTION almost_equal(x, gold, tol) RESULT(b)
-  implicit none
-  {{T}}, intent(in) :: x
-  INTEGER,  intent(in) :: gold
-  REAL,     intent(in) :: tol
-  LOGICAL              :: b
-   {% if T.is_complex %}
-  b = ( gold * (1 - tol)  <= ABS(x) ).AND.( ABS(x) <= gold * (1+tol) )
-   {% else %}
-  b = ( gold * (1 - tol)  <= x ).AND.( x <= gold * (1+tol) )
-   {% endif %}
-END FUNCTION almost_equal
+{% if test_type == 'empty_function_latency' %}
+SUBROUTINE empty_function()
+END SUBROUTINE empty_function
 {% endif %}
-
 
 {# ___  ___      _        ______                _   _              #}
 {# |  \/  |     (_)       |  ___|              | | (_)             #}
@@ -87,33 +68,15 @@ PROGRAM main
 {#  \/ (_| |  | (_| |_) | (/_   |_/ (/_ (_ | (_| | (_|  |_ | (_) | | #}
 {#                                                                   #}
 
-{% if openmp_api_call or multiple_devices %}
-#ifdef _OPENMP
+{# OpenMP libs are required for all performance codes #}
   USE OMP_LIB
   implicit none
-#else
-  implicit none
-   {% if openmp_api_call and single("teams") %}
-  INTEGER :: omp_get_num_teams
-   {% endif %}
-   {% if openmp_api_call and single("parallel") %}
-  INTEGER :: omp_get_num_threads
-   {% endif %}
-   {% if single("multiple_devices") %}
-  INTEGER :: omp_get_num_devices
-   {% endif %}
-#endif
-{% else %}
-  implicit none
-{% endif %}
 
-{% if T.is_complex and not no_user_defined_reduction %}
-   {% if test_type == 'reduction_min' %}
-!$OMP DECLARE REDUCTION(min: {{T}}: omp_out = MIN(ABS(omp_in), ABS(omp_out)))
-   {% elif test_type == 'reduction_max' %}
-!$OMP DECLARE REDUCTION(max: {{T}}: omp_out = MAX(ABS(omp_in), ABS(omp_out)))
-   {% endif %}
-{% endif %}
+  DOUBLE PRECISION :: v_start, v_end, v_elapsed
+  INTEGER :: repeat_call
+{% for counter in regions_counter | unique %}
+  {{T}} :: {{counter}}
+{% endfor %}
 
 {% for loop_constructs in regions_associated_loop %}
 {% for loop_  in loop_constructs %}
@@ -121,45 +84,13 @@ PROGRAM main
   INTEGER :: {{ loop_.i }}
 {% endfor %}
 {% endfor %}
-{% if test_type == 'memcopy' %}
-  INTEGER :: idx, S
-  INTEGER :: errno = 0
-  {{T}}, ALLOCATABLE :: src(:)
-  {{T}}, ALLOCATABLE :: dst(:)
-   {% if  T.is_complex %}
-  REAL, ALLOCATABLE :: src_real(:)
-  REAL, ALLOCATABLE :: src_imag(:)
-   {% endif %}
-
-  S = {{expected_value}}
-  ALLOCATE(dst(S), src(S) )
-
-   {% if T.is_complex %}
-  ALLOCATE(src_real(S),src_imag(S))
-  CALL RANDOM_NUMBER(src_real)
-  CALL RANDOM_NUMBER(src_imag)
-  src = CMPLX(src_real,src_imag)
-  DEALLOCATE (src_real,src_imag)
-   {% else %}
-  CALL RANDOM_NUMBER(src)
-   {% endif %}
-{% else %}
-  LOGICAL :: almost_equal
-    {# We need unique in the case of non temporary result #}
-    {% for counter in regions_counter | unique %}
-  {{T}} :: {{counter}}
-    {% endfor %}
-  INTEGER :: expected_value
-  {% if test_type.endswith('_min') %}
-  expected_value = 0
-  {% else %}
-  expected_value = {{expected_value}}
-  {% endif %}
-{% endif %}
 
 {% if single("teams") %}
   CALL omp_set_num_teams({{loop_tripcount}})
 {% endif %}
+
+{# start the timer #}
+  v_start = omp_get_wtime()
 
 {#                      _                          #}
 {# |   _   _  ._   _   |_) ._ _  |  _   _       _  #}
@@ -169,12 +100,11 @@ PROGRAM main
 {% for region, loop_constructs, region_additional_pragma, counter in zip(l_nested_constructs_ironed_out, regions_associated_loop, regions_additional_pragma,regions_counter) %}
 {% filter indent(width=2*loop.index) %}
    {# In the case of 'local' test, we use only one counter in the outermost enclosing scope #}
-   {% if  test_type != 'memcopy' and (intermediate_result or loop.first) %}
+   {% if loop.first %}
 {{counter}} = {%if test_type.endswith('_max') %} 1 {%else%} 0 {%endif%} 
    {% endif %}
    {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
 !$OMP {{pragma | replace("for","do") | upper() }} {{additional_pragma}} 
-{%- if test_type == 'memcopy' and pragma.can_be_privatized %} private(idx){% endif %}
    {% endfor %}
 
    {% for loop_  in loop_constructs %}
@@ -189,47 +119,19 @@ DO {{loop_.i}} = 1, {{loop_.N}}
 {#            |           |            _|         #}
 {% for region, loop_constructs, increments in zip(l_nested_constructs_ironed_out, regions_associated_loop, regions_increment) | reverse %}
    {% filter indent(width=2*(loop.revindex+1)) %}
-
       {# In the case of 'local' test, we increment the counter only in the inner most enclosing scope #}
-      {% if test_type != 'memcopy' and (intermediate_result or loop.first) %}
-         {% if test_type.startswith('atomic') %}
-!$OMP atomic update
-         {% elif test_type == 'ordered' and in_region('simd',region) %}
-!$OMP ordered simd
-         {% elif test_type =='ordered' %}
-!$OMP ordered
-         {% endif %}
-
-         {# Perform min and max using Fortran intrinsic function. #}
-         {# Reductions are special case and need to be in the front. #}
-         {% if T.is_complex and test_type.endswith('_min') %}
-{{increments.v}} = min(abs({{increments.v}}), REAL(abs({{inner_index}})))
-         {% elif test_type.endswith('_min') %}
-{{increments.v}} = min({{increments.v}}, REAL({{inner_index}}))
-         {% elif T.is_complex and test_type.endswith('_max') %}
-{{increments.v}} = max(abs({{increments.v}}), REAL(abs({{inner_index}})))
-         {% elif test_type.endswith('_max') %}
-{{increments.v}} = max({{increments.v}}, REAL({{inner_index}}))
-         {% elif increments.j %}
-{{increments.v}} = {{increments.v}} + {{increments.i}}  / {{increments.j}}
-         {% else %}
-{{increments.v}} = {{increments.v}} + {{increments.i}}
-         {% endif %}
-
-         {% if test_type == 'ordered' and in_region('simd',region) %}
-!$OMP end ordered simd
-         {% elif test_type =='ordered' %}
-!$OMP end ordered
-         {% endif %}
-
-      {% elif test_type == 'memcopy' and loop.first %}
-idx = {{inner_index}}
-dst(idx) = src(idx)
+      {% if loop.first %}
+        {# launch commands go in here #}
+DO repeat_call = 0, {{ repeatcount }}
+        {% if test_type == 'empty_function_latency' %}
+  CALL empty_function();
+        {% endif %}
+END DO
       {% endif %}
 
    {% endfilter %}
 
-   {# The closing braket are indented by one less level #}
+   {# The closing brackets are indented by one less level #}
    {% filter indent(width=2*loop.revindex) %}
       {% for loop_  in loop_constructs %}
 END DO
@@ -245,6 +147,9 @@ END DO
    {% endfilter %}
 {% endfor %}
 
+{# end the timer #}
+  v_end = omp_get_wtime()
+
 
 {#                                   #}
 {# \  / _. | o  _|  _. _|_ o  _  ._  #}
@@ -254,25 +159,7 @@ END DO
 {# https://tldp.org/LDP/abs/html/exitcodes.html, we choose 112 #}
 {# To follow the standard we should use ERROR STOP. But it's a Fortran 2008 feature...#}
 {# That may cause portabilities issue #}
-
-{%if test_type == 'memcopy' %}
-   {% if T.is_complex %}
-  IF (ANY(ABS(dst - src) > EPSILON(REAL(src)))) THEN
-   {% else %}
-  IF (ANY(ABS(dst - src) > EPSILON(src))) THEN
-   {% endif %}
-    WRITE(*,*)  'Wrong value', MAXVAL(ABS(DST-SRC)), 'max difference'
-    errno = 112
-  ENDIF
-  DEALLOCATE(src, dst)
-  {# STOP can *ONLY* take a constant by the standard...#}
-  IF (errno .EQ. 112) STOP 112
-{% else %}
-  IF ( .NOT.almost_equal({{regions_counter | first }},expected_value, 0.01) ) THEN
-    WRITE(*,*)  'Expected', expected_value,  'Got', {{regions_counter | first }}
-    STOP 112
-  ENDIF
-{% endif %}
+  PRINT *, "Elapsed time: ", v_end - v_start, " s"
 
 {% if name|length <= 63 %}
 END PROGRAM {{name}}
