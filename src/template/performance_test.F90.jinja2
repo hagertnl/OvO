@@ -74,6 +74,7 @@ PROGRAM main
 
   DOUBLE PRECISION :: v_start, v_end, v_elapsed
   INTEGER :: repeat_call
+  INTEGER :: localid
 {% for counter in regions_counter | unique %}
   {{T}} :: {{counter}}
 {% endfor %}
@@ -103,9 +104,16 @@ PROGRAM main
    {% if loop.first %}
 {{counter}} = {%if test_type.endswith('_max') %} 1 {%else%} 0 {%endif%} 
    {% endif %}
-   {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
+
+   {% if test_type == 'get_thread_num_latency' %}
+     {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
+!$OMP {{pragma | replace("for","do") | upper() }} {{additional_pragma}} private(localid)
+     {% endfor %}
+   {% else %}
+     {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
 !$OMP {{pragma | replace("for","do") | upper() }} {{additional_pragma}} 
-   {% endfor %}
+     {% endfor %}
+   {% endif %}
 
    {% for loop_  in loop_constructs %}
 DO {{loop_.i}} = 1, {{loop_.N}}
@@ -126,7 +134,6 @@ DO repeat_call = 0, {{ repeatcount }}
         {% if test_type == 'empty_function_latency' %}
   CALL empty_function()
         {% elif test_type == 'get_thread_num_latency' %}
-  INTEGER :: localid
   localid = omp_get_thread_num()
         {% endif %}
 END DO

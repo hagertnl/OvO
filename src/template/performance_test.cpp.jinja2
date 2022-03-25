@@ -71,6 +71,10 @@ void test_{{name}}() {
 {# start the timer #}
   double start_timer = omp_get_wtime();
 
+{% if test_type == 'get_thread_num_latency' %}
+  int localid;
+{% endif %}
+
 {#                      _                          #}
 {# |   _   _  ._   _   |_) ._ _  |  _   _       _  #}
 {# |_ (_) (_) |_) _>   |   | (_) | (_) (_| |_| (/_ #}
@@ -84,9 +88,15 @@ void test_{{name}}() {
    {% if enter_data and loop.first %}
 #pragma omp target enter data map(to: {{counter}})
    {% endif %}
-   {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
+   {% if test_type == 'get_thread_num_latency' %}
+     {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
+#pragma omp {{pragma}} {{additional_pragma}} private(localid)
+     {% endfor %}
+   {% else %}
+     {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
 #pragma omp {{pragma}} {{additional_pragma}}
-   {% endfor %}
+     {% endfor %}
+   {% endif %}
 
    {% for loop_  in loop_constructs %}
 for (int {{loop_.i}} = 0 ; {{loop_.i}} < {{loop_.N}} ; {{loop_.i}}++ )
@@ -109,7 +119,7 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
         {% if test_type == 'empty_function_latency' %}
   empty_function();
         {% elif test_type == 'get_thread_num_latency' %}
-  int localid = omp_get_thread_num()
+  localid = omp_get_thread_num()
         {% endif %}
 }
       {% endif %}

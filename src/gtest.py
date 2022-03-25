@@ -1166,6 +1166,15 @@ class Performance(HP):
         return True
 
     @cached_property
+    def template_rendered(self):
+        if not self.is_valid_test:
+            return None
+        template = templateEnv.get_template(f"performance_test.{self.ext}.jinja2")
+        str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
+        return format_template(str_, self.language)
+
+
+    @cached_property
     def regions_additional_pragma(self):
         """
         >>> # HP(["target teams"], {"test_type": "atomic_add", "collapse": 0}).regions_additional_pragma
