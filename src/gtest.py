@@ -1458,7 +1458,7 @@ hp_d_default_value = defaultdict(lambda: False)
 hp_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"memcopy", "atomic_add", "reduction_add"}, "collapse": [0], "tripcount": [32 * 32 * 32]})
 
 pf_d_possible_value = {
-    "test_type": {"empty_function_latency"},
+    "test_type": {"empty_function_latency", "get_thread_num_latency"},
     "data_type": {"REAL", "DOUBLE PRECISION", "float", "double"},
     "loop_pragma": bool,
     "paired_pragmas": bool,
@@ -1473,7 +1473,7 @@ pf_d_possible_value = {
 }
 
 pf_d_default_value = defaultdict(lambda: False)
-pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 10})
+pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency", "get_thread_num_latency"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 10})
 
 
 mf_d_possible_value = {"standard": {"cpp11", "cpp17", "cpp20", "F77", "gnu", "F08"},

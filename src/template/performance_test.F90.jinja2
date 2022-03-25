@@ -124,7 +124,10 @@ DO {{loop_.i}} = 1, {{loop_.N}}
         {# launch commands go in here #}
 DO repeat_call = 0, {{ repeatcount }}
         {% if test_type == 'empty_function_latency' %}
-  CALL empty_function();
+  CALL empty_function()
+        {% elif test_type == 'get_thread_num_latency' %}
+  INTEGER :: localid
+  localid = omp_get_thread_num()
         {% endif %}
 END DO
       {% endif %}

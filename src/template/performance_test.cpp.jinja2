@@ -108,6 +108,8 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
 {
         {% if test_type == 'empty_function_latency' %}
   empty_function();
+        {% elif test_type == 'get_thread_num_latency' %}
+  int localid = omp_get_thread_num()
         {% endif %}
 }
       {% endif %}
