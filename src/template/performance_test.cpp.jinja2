@@ -88,9 +88,9 @@ void test_{{name}}() {
    {% if enter_data and loop.first %}
 #pragma omp target enter data map(to: {{counter}})
    {% endif %}
-   {% if test_type == 'get_thread_num_latency' %}
+   {% if test_type == 'get_thread_num_latency' and loop.last %}
      {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
-#pragma omp {{pragma}} {{additional_pragma}} private(localid)
+#pragma omp {{pragma}} {{additional_pragma}} {% if loop.last %} private(localid) {% endif %}
      {% endfor %}
    {% else %}
      {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
@@ -119,7 +119,7 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
         {% if test_type == 'empty_function_latency' %}
   empty_function();
         {% elif test_type == 'get_thread_num_latency' %}
-  localid = omp_get_thread_num()
+  localid = omp_get_thread_num();
         {% endif %}
 }
       {% endif %}

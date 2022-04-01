@@ -105,9 +105,10 @@ PROGRAM main
 {{counter}} = {%if test_type.endswith('_max') %} 1 {%else%} 0 {%endif%} 
    {% endif %}
 
-   {% if test_type == 'get_thread_num_latency' %}
+   {# if it's the inner-most loop, then add the data statements for localid for get_thread_id #}
+   {% if test_type == 'get_thread_num_latency' and loop.last %}
      {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
-!$OMP {{pragma | replace("for","do") | upper() }} {{additional_pragma}} private(localid)
+!$OMP {{pragma | replace("for","do") | upper() }} {{additional_pragma}} {% if loop.last %} private(localid) {% endif %}
      {% endfor %}
    {% else %}
      {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
