@@ -1467,7 +1467,7 @@ hp_d_default_value = defaultdict(lambda: False)
 hp_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"memcopy", "atomic_add", "reduction_add"}, "collapse": [0], "tripcount": [32 * 32 * 32]})
 
 pf_d_possible_value = {
-    "test_type": {"empty_function_latency", "get_thread_num_latency"},
+    "test_type": {"empty_function_latency", "get_thread_num_latency", "matrix_decomposition"},
     "data_type": {"REAL", "DOUBLE PRECISION", "float", "double"},
     "loop_pragma": bool,
     "paired_pragmas": bool,
@@ -1478,11 +1478,12 @@ pf_d_possible_value = {
     "collapse": int,
     "tripcount": int,
     "repeatcount": int,     # repeatcount - number of times to repeat the inner-most timed run
+    "matrix_size": int,     # matrix_size - one dimension of a square matrix
     "target_data": bool
 }
 
 pf_d_default_value = defaultdict(lambda: False)
-pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency", "get_thread_num_latency"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 10})
+pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency", "get_thread_num_latency", "matrix_decomposition"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 10, "matrix_size": 50})
 
 
 mf_d_possible_value = {"standard": {"cpp11", "cpp17", "cpp20", "F77", "gnu", "F08"},

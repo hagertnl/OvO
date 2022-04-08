@@ -68,12 +68,18 @@ void test_{{name}}() {
   omp_set_num_teams({{loop_tripcount}});
 {% endif %}
 
-{# start the timer #}
-  double start_timer = omp_get_wtime();
-
 {% if test_type == 'get_thread_num_latency' %}
   int localid;
+{% elif test_type == 'matrix_decomposition' %}
+  {{T}} mat[{{matrix_size}}][{{matrix_size}}] = {
+    {% for row in range(matrix_size) %}
+    { {% for col in range(matrix_size) %}{% if loop.first %}0{% else %} ,0{%endif%}{% endfor %} } {% if not loop.last %},{%endif%}
+    {% endfor %}
+  };
 {% endif %}
+
+{# start the timer #}
+  double start_timer = omp_get_wtime();
 
 {#                      _                          #}
 {# |   _   _  ._   _   |_) ._ _  |  _   _       _  #}
@@ -112,15 +118,27 @@ for (int {{loop_.i}} = 0 ; {{loop_.i}} < {{loop_.N}} ; {{loop_.i}}++ )
 
 {% for region, increments in zip(l_nested_constructs_ironed_out,regions_increment) | reverse %}
    {% filter indent(width=2*(loop.revindex+1)) %}
-      {% if loop.first %}
+      {% if loop.first %}  {#   THIS IS WHERE THE FUNCTION CALLS ARE #}
         {# launch commands go in here #}
 for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
 {
+{# TESTS HERE #}
+
+
         {% if test_type == 'empty_function_latency' %}
   empty_function();
         {% elif test_type == 'get_thread_num_latency' %}
   localid = omp_get_thread_num();
+        {% elif test_type == 'matrix_decomposition' %}
+            {% for row in range(matrix_size) %}
+                {% for col in range(matrix_size) %}
+  {{T}} n_{{row}}_{{col}} = mat[{{row}}][{{col}}];
+                {% endfor %}
+            {% endfor %}
         {% endif %}
+
+
+{# END TESTS #}
 }
       {% endif %}
 
