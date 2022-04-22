@@ -73,7 +73,11 @@ void test_{{name}}() {
 {% elif test_type == 'matrix_decomposition' %}
   {{T}} mat[{{matrix_size}}][{{matrix_size}}] = {
     {% for row in range(matrix_size) %}
-    { {% for col in range(matrix_size) %}{% if loop.first %}0{% else %} ,0{%endif%}{% endfor %} } {% if not loop.last %},{%endif%}
+    {% if data_type == 'int' %}
+    { {% for col in range(matrix_size) %}{% if loop.first %}{{ range(1,100) | random }}{% else %}, {{range(1,100) | random}}{%endif%}{% endfor %} } {% if not loop.last %},{%endif%}
+    {% else %}
+    { {% for col in range(matrix_size) %}{% if loop.first %}{{range(1,100) | random / 100}}{% else %}, {{range(1,100) | random / 100}}{%endif%}{% endfor %} } {% if not loop.last %},{%endif%}
+    {% endif %}
     {% endfor %}
   };
 {% endif %}

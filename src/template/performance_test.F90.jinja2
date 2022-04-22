@@ -74,7 +74,11 @@ PROGRAM main
 
   DOUBLE PRECISION :: v_start, v_end, v_elapsed
   INTEGER :: repeat_call
+{% if test_type == 'get_thread_num_latency' %}
   INTEGER :: localid
+{% elif test_type == 'matrix_decomposition' %}
+  {{T}}, DIMENSION({{matrix_size}}, {{matrix_size}}) :: mat
+{% endif %}
 {% for counter in regions_counter | unique %}
   {{T}} :: {{counter}}
 {% endfor %}
@@ -88,6 +92,18 @@ PROGRAM main
 
 {% if single("teams") %}
   CALL omp_set_num_teams({{loop_tripcount}})
+{% endif %}
+
+{% if test_type == 'matrix_decomposition' %}
+  array = reshape((/ &
+{% for row in range(matrix_size) %}
+    {% if data_type == 'INTEGER' %}
+    &{% for col in range(matrix_size) %}{% if loop.first %}{{ range(1,100) | random }}{% else %}, {{range(1,100) | random}}{%endif%}{% endfor %} {% if not loop.last %},{%endif%}
+    {% else %}
+    &{% for col in range(matrix_size) %}{% if loop.first %}{{range(1,100) | random / 100}}{% else %}, {{range(1,100) | random / 100}}{%endif%}{% endfor %} {% if not loop.last %},{%else%}&{%endif%}
+    {% endif %}
+{% endfor %}
+  & /), shape(mat))
 {% endif %}
 
 {# start the timer #}
