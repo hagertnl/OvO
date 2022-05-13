@@ -156,7 +156,7 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
 
 {# end the timer #}
   double end_timer = omp_get_wtime();
-  double elapsed_time = end_timer - start_timer;
+  double elapsed_time = (end_timer - start_timer) / {{ repeatcount }};
 
 {% if enter_data %}
   #pragma omp target exit data map(from: {{regions_counter[0]}})
@@ -167,7 +167,7 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
 {#  \/ (_| | | (_| (_|  |_ | (_) | | #}
 {#                                   #}
 
-  std::cout << "Elapsed time: " << elapsed_time << " s" << std::endl;
+  std::cout << "Per-call Time: " << elapsed_time << " s" << std::endl;
 }
 
 {# ___  ___      _        ______                _   _              #}

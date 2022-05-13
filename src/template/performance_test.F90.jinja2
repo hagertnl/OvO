@@ -186,7 +186,7 @@ END DO
 {# https://tldp.org/LDP/abs/html/exitcodes.html, we choose 112 #}
 {# To follow the standard we should use ERROR STOP. But it's a Fortran 2008 feature...#}
 {# That may cause portabilities issue #}
-  PRINT *, "Elapsed time: ", v_end - v_start, " s"
+  PRINT *, "Per-call Time: ", (v_end - v_start) / {{ repeatcount }}, " s"
 
 {% if name|length <= 63 %}
 END PROGRAM {{name}}
