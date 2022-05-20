@@ -872,17 +872,11 @@ class HP:  # ^(;,;)^
 
     @cached_property
     def template_rendered(self):
-
         if not self.is_valid_test:
             return None
-        if self.test_type == 'empty_function_latency':
-            template = templateEnv.get_template(f"performance_test.{self.ext}.jinja2")
-            str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
-            return format_template(str_, self.language)
-        else:
-            template = templateEnv.get_template(f"hierarchical_parallelism.{self.ext}.jinja2")
-            str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
-            return format_template(str_, self.language)
+        template = templateEnv.get_template(f"hierarchical_parallelism.{self.ext}.jinja2")
+        str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
+        return format_template(str_, self.language)
 
     def write_template_rendered(self, folder):
         if self.template_rendered:
@@ -1164,6 +1158,26 @@ class Performance(HP):
             All Performance codes use omp_get_wtime(), so we need the OMP header
         """
         return True
+
+    def nested_ifs(self):
+        """
+            Helper property to generate highly nested if/else conditionals of a certain depth
+        """
+        inner_cmd = "cond_{index} = (cond_{index} + 1) % 2;"
+        indent = '  '  # 2-space indent
+        def recursive_gen(i, n):
+            if i == n:
+                return inner_cmd.format(index=i)
+            # It's not the most readable, but double brackets are evaluated as a single literal
+            if_s = f"if (cond_{i} == 1) {{\n{indent * (i+1)}{recursive_gen(i+1, n)}\n"
+            else_s = f"{indent*i}}} else {{\n{indent * (i+1)}{recursive_gen(i+1, n)}\n{indent*i}}}"
+            return if_s + else_s
+
+        # Avoid duplicate work
+        if hasattr(self, 'nested_if_str'):
+            return self.nested_if_str
+        self.nested_if_str = recursive_gen(0, self.branch_depth)
+        return self.nested_if_str
 
     @cached_property
     def template_rendered(self):
@@ -1467,7 +1481,7 @@ hp_d_default_value = defaultdict(lambda: False)
 hp_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"memcopy", "atomic_add", "reduction_add"}, "collapse": [0], "tripcount": [32 * 32 * 32]})
 
 pf_d_possible_value = {
-    "test_type": {"empty_function_latency", "get_thread_num_latency", "matrix_decomposition"},
+    "test_type": {"empty_function_latency", "get_thread_num_latency", "matrix_decomposition", "branches"},
     "data_type": {"REAL", "DOUBLE PRECISION", "float", "double"},
     "loop_pragma": bool,
     "paired_pragmas": bool,
@@ -1479,11 +1493,12 @@ pf_d_possible_value = {
     "tripcount": int,
     "repeatcount": int,     # repeatcount - number of times to repeat the inner-most timed run
     "matrix_size": int,     # matrix_size - one dimension of a square matrix
+    "branch_depth": int,     # branch_depth - number of if/else statements
     "target_data": bool
 }
 
 pf_d_default_value = defaultdict(lambda: False)
-pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency", "get_thread_num_latency", "matrix_decomposition"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 10, "matrix_size": 50})
+pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency", "get_thread_num_latency", "matrix_decomposition", "branches"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 40, "matrix_size": 50, "branch_depth": 15})
 
 
 mf_d_possible_value = {"standard": {"cpp11", "cpp17", "cpp20", "F77", "gnu", "F08"},

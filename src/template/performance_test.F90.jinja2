@@ -78,6 +78,11 @@ PROGRAM main
   INTEGER :: localid
 {% elif test_type == 'matrix_decomposition' %}
   {{T}}, DIMENSION({{matrix_size}}, {{matrix_size}}) :: mat
+  {% for row in range(matrix_size) %}
+    {% for col in range(matrix_size) %}
+  {{T}} :: n_{{row}}_{{col}}
+    {% endfor %}
+  {% endfor %}
 {% endif %}
 {% for counter in regions_counter | unique %}
   {{T}} :: {{counter}}
@@ -95,15 +100,7 @@ PROGRAM main
 {% endif %}
 
 {% if test_type == 'matrix_decomposition' %}
-  array = reshape((/ &
-{% for row in range(matrix_size) %}
-    {% if data_type == 'INTEGER' %}
-    &{% for col in range(matrix_size) %}{% if loop.first %}{{ range(1,100) | random }}{% else %}, {{range(1,100) | random}}{%endif%}{% endfor %} {% if not loop.last %},{%endif%}
-    {% else %}
-    &{% for col in range(matrix_size) %}{% if loop.first %}{{range(1,100) | random / 100}}{% else %}, {{range(1,100) | random / 100}}{%endif%}{% endfor %} {% if not loop.last %},{%else%}&{%endif%}
-    {% endif %}
-{% endfor %}
-  & /), shape(mat))
+  CALL random_number(mat)
 {% endif %}
 
 {# start the timer #}
@@ -152,6 +149,12 @@ DO repeat_call = 0, {{ repeatcount }}
   CALL empty_function()
         {% elif test_type == 'get_thread_num_latency' %}
   localid = omp_get_thread_num()
+        {% elif test_type == 'matrix_decomposition' %}
+            {% for row in range(matrix_size) %}
+                {% for col in range(matrix_size) %}
+  n_{{row}}_{{col}} = mat({{row}},{{col}})
+                {% endfor %}
+            {% endfor %}
         {% endif %}
 END DO
       {% endif %}

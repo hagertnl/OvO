@@ -80,6 +80,11 @@ void test_{{name}}() {
     {% endif %}
     {% endfor %}
   };
+{% elif test_type == 'branches' %}
+    {% for r in range(branch_depth) %}
+        {# alternates 0 or 1 to hit the if and else branches evenly #}
+  {{T}} cond_{{r}} = {{r % 2}}
+    {% endfor %}
 {% endif %}
 
 {# start the timer #}
@@ -128,7 +133,6 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
 {
 {# TESTS HERE #}
 
-
         {% if test_type == 'empty_function_latency' %}
   empty_function();
         {% elif test_type == 'get_thread_num_latency' %}
@@ -139,6 +143,8 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
   {{T}} n_{{row}}_{{col}} = mat[{{row}}][{{col}}];
                 {% endfor %}
             {% endfor %}
+        {% elif test_type == 'branches' %}
+            {{nested_ifs()}}
         {% endif %}
 
 
