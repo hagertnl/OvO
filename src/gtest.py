@@ -1159,25 +1159,38 @@ class Performance(HP):
         """
         return True
 
-    def nested_ifs(self):
+    def nested_ifs_c(self):
         """
-            Helper property to generate highly nested if/else conditionals of a certain depth
+            Helper property to generate highly nested if/else conditionals of a certain depth in C++
         """
         inner_cmd = "cond_{index} = (cond_{index} + 1) % 2;"
         indent = '  '  # 2-space indent
         def recursive_gen(i, n):
-            if i == n:
-                return inner_cmd.format(index=i)
+            if i > n:
+                return inner_cmd.format(index=i-2)
             # It's not the most readable, but double brackets are evaluated as a single literal
-            if_s = f"if (cond_{i} == 1) {{\n{indent * (i+1)}{recursive_gen(i+1, n)}\n"
+            if_s = f"if (cond_{i-1} == 1) {{\n{indent * (i+1)}{recursive_gen(i+1, n)}\n"
             else_s = f"{indent*i}}} else {{\n{indent * (i+1)}{recursive_gen(i+1, n)}\n{indent*i}}}"
             return if_s + else_s
 
-        # Avoid duplicate work
-        if hasattr(self, 'nested_if_str'):
-            return self.nested_if_str
-        self.nested_if_str = recursive_gen(0, self.branch_depth)
-        return self.nested_if_str
+        return recursive_gen(1, self.branch_depth)
+
+    def nested_ifs_f90(self):
+        """
+            Helper property to generate highly nested if/else conditionals of a certain depth in F90
+        """
+        inner_cmd = "cond_{index} = MOD(cond_{index} + 1, 2)"
+        indent = '  '  # 2-space indent
+        def recursive_gen(i, n):
+            if i > n:
+                return inner_cmd.format(index=i-2)
+            # It's not the most readable, but double brackets are evaluated as a single literal
+            if_s = f"if ( cond_{i-1} == 1 ) then\n{indent * (i+1)}{recursive_gen(i+1, n)}\n"
+            else_s = f"{indent*i}else\n{indent * (i+1)}{recursive_gen(i+1, n)}\n{indent*i}end if"
+            return if_s + else_s
+
+        # The code is nested inside a for-loop, so more indentation is needed
+        return recursive_gen(1, self.branch_depth)
 
     @cached_property
     def template_rendered(self):

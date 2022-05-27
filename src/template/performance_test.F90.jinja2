@@ -83,6 +83,10 @@ PROGRAM main
   {{T}} :: n_{{row}}_{{col}}
     {% endfor %}
   {% endfor %}
+{% elif test_type == 'branches' %}
+  {% for r in range(branch_depth) %}
+  INTEGER :: cond_{{r}} = {{r % 2}}
+  {% endfor %}
 {% endif %}
 {% for counter in regions_counter | unique %}
   {{T}} :: {{counter}}
@@ -155,6 +159,8 @@ DO repeat_call = 0, {{ repeatcount }}
   n_{{row}}_{{col}} = mat({{row}},{{col}})
                 {% endfor %}
             {% endfor %}
+        {% elif test_type == 'branches' %}
+  {{nested_ifs_f90()}}
         {% endif %}
 END DO
       {% endif %}

@@ -144,7 +144,7 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
                 {% endfor %}
             {% endfor %}
         {% elif test_type == 'branches' %}
-            {{nested_ifs()}}
+  {{nested_ifs_c()}}
         {% endif %}
 
 
