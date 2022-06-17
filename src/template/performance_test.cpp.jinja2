@@ -81,10 +81,11 @@ void test_{{name}}() {
     {% endfor %}
   };
 {% elif test_type == 'branches' %}
-    {% for r in range(branch_depth) %}
-        {# alternates 0 or 1 to hit the if and else branches evenly #}
-  {{T}} cond_{{r}} = {{r % 2}}
-    {% endfor %}
+{# right now, this sets on variable as rand(0, nbranches). It could, however, be switched to use cond_index variables #}
+{# ex: if (cond_0 == 0) #}
+{# right now, we set it to take the last branch #}
+  int cond_num = {{nbranches}};
+  int branch_taken = -1;
 {% endif %}
 
 {# start the timer #}
@@ -144,7 +145,17 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
                 {% endfor %}
             {% endfor %}
         {% elif test_type == 'branches' %}
-  {{nested_ifs_c()}}
+            {% for cond_index in range(nbranches) %}
+                {% filter indent(width=2*(loop.revindex+1)) %}
+                    {% if loop.first %}
+  if (cond_num == {{cond_index}}) {
+                    {% else %}
+  else if (cond_num == {{cond_index}}) {
+                    {% endif %}
+    branch_taken = cond_num;
+  }
+                {% endfilter %}
+            {% endfor %}
         {% endif %}
 
 

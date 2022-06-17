@@ -1159,39 +1159,6 @@ class Performance(HP):
         """
         return True
 
-    def nested_ifs_c(self):
-        """
-            Helper property to generate highly nested if/else conditionals of a certain depth in C++
-        """
-        inner_cmd = "cond_{index} = (cond_{index} + 1) % 2;"
-        indent = '  '  # 2-space indent
-        def recursive_gen(i, n):
-            if i > n:
-                return inner_cmd.format(index=i-2)
-            # It's not the most readable, but double brackets are evaluated as a single literal
-            if_s = f"if (cond_{i-1} == 1) {{\n{indent * (i+1)}{recursive_gen(i+1, n)}\n"
-            else_s = f"{indent*i}}} else {{\n{indent * (i+1)}{recursive_gen(i+1, n)}\n{indent*i}}}"
-            return if_s + else_s
-
-        return recursive_gen(1, self.branch_depth)
-
-    def nested_ifs_f90(self):
-        """
-            Helper property to generate highly nested if/else conditionals of a certain depth in F90
-        """
-        inner_cmd = "cond_{index} = MOD(cond_{index} + 1, 2)"
-        indent = '  '  # 2-space indent
-        def recursive_gen(i, n):
-            if i > n:
-                return inner_cmd.format(index=i-2)
-            # It's not the most readable, but double brackets are evaluated as a single literal
-            if_s = f"if ( cond_{i-1} == 1 ) then\n{indent * (i+1)}{recursive_gen(i+1, n)}\n"
-            else_s = f"{indent*i}else\n{indent * (i+1)}{recursive_gen(i+1, n)}\n{indent*i}end if"
-            return if_s + else_s
-
-        # The code is nested inside a for-loop, so more indentation is needed
-        return recursive_gen(1, self.branch_depth)
-
     @cached_property
     def template_rendered(self):
         if not self.is_valid_test:
@@ -1506,12 +1473,12 @@ pf_d_possible_value = {
     "tripcount": int,
     "repeatcount": int,     # repeatcount - number of times to repeat the inner-most timed run
     "matrix_size": int,     # matrix_size - one dimension of a square matrix
-    "branch_depth": int,     # branch_depth - number of if/else statements
+    "nbranches": int,     # nbranches - number of if/elseif/else statements
     "target_data": bool
 }
 
 pf_d_default_value = defaultdict(lambda: False)
-pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency", "get_thread_num_latency", "matrix_decomposition", "branches"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 40, "matrix_size": 50, "branch_depth": 15})
+pf_d_default_value.update({"data_type": {"REAL", "float"}, "test_type": {"empty_function_latency", "get_thread_num_latency", "matrix_decomposition", "branches"}, "collapse": [0], "tripcount": [32 * 32 * 32], "repeatcount": 40, "matrix_size": 50, "nbranches": 15})
 
 
 mf_d_possible_value = {"standard": {"cpp11", "cpp17", "cpp20", "F77", "gnu", "F08"},
