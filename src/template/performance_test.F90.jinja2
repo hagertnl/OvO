@@ -84,9 +84,8 @@ PROGRAM main
     {% endfor %}
   {% endfor %}
 {% elif test_type == 'branches' %}
-  {% for r in range(branch_depth) %}
-  INTEGER :: cond_{{r}} = {{r % 2}}
-  {% endfor %}
+  INTEGER :: cond_num = {{nbranches-1}}
+  INTEGER :: branch_taken = -1
 {% endif %}
 {% for counter in regions_counter | unique %}
   {{T}} :: {{counter}}
@@ -160,7 +159,14 @@ DO repeat_call = 0, {{ repeatcount }}
                 {% endfor %}
             {% endfor %}
         {% elif test_type == 'branches' %}
-  {{nested_ifs_f90()}}
+            {% for cond_index in range(nbranches) %}
+                {% if loop.first %}
+  if (cond_num == {{cond_index}}) then
+                {% else %}
+  else if (cond_num == {{cond_index}}) then
+                {% endif %}
+    branch_taken = cond_num
+            {% endfor %}
         {% endif %}
 END DO
       {% endif %}

@@ -81,10 +81,10 @@ void test_{{name}}() {
     {% endfor %}
   };
 {% elif test_type == 'branches' %}
-{# right now, this sets on variable as rand(0, nbranches). It could, however, be switched to use cond_index variables #}
+{# right now, this sets on variable as rand(0, nbranches). It could, however, be switched to use cond_{index} variables #}
 {# ex: if (cond_0 == 0) #}
 {# right now, we set it to take the last branch #}
-  int cond_num = {{nbranches}};
+  int cond_num = {{nbranches-1}};
   int branch_taken = -1;
 {% endif %}
 
@@ -146,15 +146,13 @@ for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
             {% endfor %}
         {% elif test_type == 'branches' %}
             {% for cond_index in range(nbranches) %}
-                {% filter indent(width=2*(loop.revindex+1)) %}
-                    {% if loop.first %}
+                {% if loop.first %}
   if (cond_num == {{cond_index}}) {
-                    {% else %}
+                {% else %}
   else if (cond_num == {{cond_index}}) {
-                    {% endif %}
+                {% endif %}
     branch_taken = cond_num;
   }
-                {% endfilter %}
             {% endfor %}
         {% endif %}
 
