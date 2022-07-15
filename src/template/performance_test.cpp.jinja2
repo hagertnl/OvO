@@ -91,83 +91,84 @@ void test_{{name}}() {
 {# start the timer #}
   double start_timer = omp_get_wtime();
 
+  {# loop over OpenMP init and timed call #}
+  for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
+  {
+  {% filter indent(width=2) %}
 {#                      _                          #}
 {# |   _   _  ._   _   |_) ._ _  |  _   _       _  #}
 {# |_ (_) (_) |_) _>   |   | (_) | (_) (_| |_| (/_ #}
 {#            |                         _|         #}
-{% for region, loop_constructs, region_additional_pragma, counter in zip(l_nested_constructs_ironed_out, regions_associated_loop, regions_additional_pragma,regions_counter) %}
-{% filter indent(width=2*loop.index) %}
-   {# In the case of 'local' test, we use only one counter in the outermost enclosing scope #} 
-   {% if loop.first %}
+  {% for region, loop_constructs, region_additional_pragma, counter in zip(l_nested_constructs_ironed_out, regions_associated_loop, regions_additional_pragma,regions_counter) %}
+  {% filter indent(width=2*loop.index) %}
+     {# In the case of 'local' test, we use only one counter in the outermost enclosing scope #} 
+     {% if loop.first %}
 {{T}} {{counter}}{};
-   {% endif %}
-   {% if enter_data and loop.first %}
+     {% endif %}
+     {% if enter_data and loop.first %}
 #pragma omp target enter data map(to: {{counter}})
-   {% endif %}
-   {% if test_type == 'get_thread_num_latency' and loop.last %}
-     {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
+     {% endif %}
+     {% if test_type == 'get_thread_num_latency' and loop.last %}
+       {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
 #pragma omp {{pragma}} {{additional_pragma}} {% if loop.last %} private(localid) {% endif %}
-     {% endfor %}
-   {% else %}
-     {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
+       {% endfor %}
+     {% else %}
+       {% for pragma, additional_pragma in zip(region, region_additional_pragma) %}
 #pragma omp {{pragma}} {{additional_pragma}}
-     {% endfor %}
-   {% endif %}
+       {% endfor %}
+     {% endif %}
 
-   {% for loop_  in loop_constructs %}
+     {% for loop_  in loop_constructs %}
 for (int {{loop_.i}} = 0 ; {{loop_.i}} < {{loop_.N}} ; {{loop_.i}}++ )
-   {% endfor %}
+     {% endfor %}
 {
-{% endfilter %}
-{% endfor %}
+  {% endfilter %}
+  {% endfor %}
 
 {#                      _                         #}
 {# |   _   _  ._   _   |_ ._  o |  _   _       _  #}
 {# |_ (_) (_) |_) _>   |_ |_) | | (_) (_| |_| (/_ #}
 {#            |           |            _|         #}
 
-{% for region, increments in zip(l_nested_constructs_ironed_out,regions_increment) | reverse %}
-   {% filter indent(width=2*(loop.revindex+1)) %}
-      {% if loop.first %}  {#   THIS IS WHERE THE FUNCTION CALLS ARE #}
-        {# launch commands go in here #}
-for (int repeat_call = 0; repeat_call < {{ repeatcount }}; repeat_call++)
-{
-{# TESTS HERE #}
-
-        {% if test_type == 'empty_function_latency' %}
+  {% for region, increments in zip(l_nested_constructs_ironed_out,regions_increment) | reverse %}
+     {% filter indent(width=2*(loop.revindex+1)) %}
+        {% if loop.first %}  {#   THIS IS WHERE THE FUNCTION CALLS ARE #}
+        {# TESTS HERE #}
+          {% if test_type == 'empty_function_latency' %}
   empty_function();
-        {% elif test_type == 'get_thread_num_latency' %}
+          {% elif test_type == 'get_thread_num_latency' %}
   localid = omp_get_thread_num();
-        {% elif test_type == 'matrix_decomposition' %}
-            {% for row in range(matrix_size) %}
-                {% for col in range(matrix_size) %}
+          {% elif test_type == 'matrix_decomposition' %}
+              {% for row in range(matrix_size) %}
+                  {% for col in range(matrix_size) %}
   {{T}} n_{{row}}_{{col}} = mat[{{row}}][{{col}}];
-                {% endfor %}
-            {% endfor %}
-        {% elif test_type == 'branches' %}
-            {% for cond_index in range(nbranches) %}
-                {% if loop.first %}
+                  {% endfor %}
+              {% endfor %}
+          {% elif test_type == 'branches' %}
+              {% for cond_index in range(nbranches) %}
+                  {% if loop.first %}
   if (cond_num == {{cond_index}}) {
-                {% else %}
+                  {% else %}
   else if (cond_num == {{cond_index}}) {
-                {% endif %}
+                  {% endif %}
     branch_taken = cond_num;
   }
-            {% endfor %}
+              {% endfor %}
+          {% endif %}
+
+  {# END TESTS #}
         {% endif %}
 
+     {% endfilter %}
 
-{# END TESTS #}
+     {# The closing braket are indented by one less level #}
+     {% filter indent(width=2*loop.revindex) %}
 }
-      {% endif %}
-
-   {% endfilter %}
-
-   {# The closing braket are indented by one less level #}
-   {% filter indent(width=2*loop.revindex) %}
-}
-   {% endfilter %}
-{% endfor %}
+     {% endfilter %}
+  {% endfor %}
+{% endfilter %}
+  {# ends the outer for-loop #}
+  }
 
 {# end the timer #}
   double end_timer = omp_get_wtime();
