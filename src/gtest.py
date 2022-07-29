@@ -341,16 +341,6 @@ class HP:  # ^(;,;)^
         return NotImplementedError
 
     @cached_property
-    def needs_timer(self):
-        """
-        >>> HP(None, {"test_type": "empty_function_latency"}).name
-        'True'
-        >>> HP(None, {"test_type": "atomic_add"}).name
-        'False'
-        """
-        return self.test_type == 'empty_function_latency'
-
-    @cached_property
     def ext(self):
         """
         >>> HP(None, {"data_type": "float"}).ext
