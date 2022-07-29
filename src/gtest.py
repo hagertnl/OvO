@@ -1620,6 +1620,7 @@ if __name__ == "__main__":
                 {"collapse": {2,}, "data_type": {"REAL", "float"}, "test_type": "memcopy","tripcount": {t}},
             ]
             l_mf += [{"standard": {"cpp11", "F77", "F08", "gnu"}, "complex": {True, False}, "hp":{"target","target_teams_distribute__parallel_for__simd"} }]
+            l_pf = []
         if p.command == "tiers" and p.tiers >= 3:
             d1 = dict(hp_d_possible_value)
             for k, v in d1.items():
@@ -1635,6 +1636,7 @@ if __name__ == "__main__":
                     d2[k] = [True, False]
             d2["simdize"] = [1, 32]
             l_mf = [d2]
+            l_pf = []
 
     l_hp_unique = set(chain.from_iterable(gen_all_permutation(d) for d in l_hp))
     l_pf_unique = set(chain.from_iterable(gen_all_permutation(d) for d in l_pf))
