@@ -279,6 +279,7 @@ class HP:  # ^(;,;)^
         for k, v in d_arg.items():
             setattr(self, k, v)
 
+
     @cached_property
     def T(self):
         return TypeSystem(self.data_type)
@@ -862,8 +863,10 @@ class HP:  # ^(;,;)^
 
     @cached_property
     def template_rendered(self):
+
         if not self.is_valid_test:
             return None
+
         template = templateEnv.get_template(f"hierarchical_parallelism.{self.ext}.jinja2")
         str_ = template.render(**{p: getattr(self, p) for p in dir(self) if p != "template_rendered"})
         return format_template(str_, self.language)
@@ -997,6 +1000,7 @@ class Argv:
 
 
 class Math:
+
     T_to_values = {
         "bool": [True],
         "float": [0.42, 4.42],
@@ -1282,6 +1286,7 @@ class Performance(HP):
 
 
 def gen_mf(d_arg):
+
     std = d_arg["standard"]
     cmplx = d_arg["complex"]
     hp = d_arg["hp"]
@@ -1433,7 +1438,7 @@ def gen_all_permutation(d_args):
 #                                  _|
 
 hp_d_possible_value = {
-    "test_type": {"memcopy", "atomic_add", "reduction_add", "reduction_min", "reduction_max", "ordered", "empty_function_latency"},
+    "test_type": {"memcopy", "atomic_add", "reduction_add", "reduction_min", "reduction_max", "ordered"},
     "data_type": {"REAL", "DOUBLE PRECISION", "float", "double", "complex<float>", "complex<double>", "COMPLEX", "DOUBLE COMPLEX"},
     "loop_pragma": bool,
     "paired_pragmas": bool,
