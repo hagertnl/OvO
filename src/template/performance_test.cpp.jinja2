@@ -14,8 +14,7 @@
 {#     |                                        #}
 
 {% if single("teams") or single("parallel") or multiple_devices %}
-#ifdef _OPENMP
-#else
+#ifndef _OPENMP
 
 {% if single("teams") %}
 int omp_get_num_teams() {return 1;}

@@ -1463,7 +1463,6 @@ pf_d_possible_value = {
     "no_implicit_mapping": bool,
     "host_threaded": bool,
     "multiple_devices": bool,
-    "intermediate_result": bool,
     "collapse": int,
     "tripcount": int,
     "repeatcount": int,     # repeatcount - number of times to repeat the inner-most timed run
